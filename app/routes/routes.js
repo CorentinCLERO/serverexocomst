@@ -1,28 +1,33 @@
 module.exports = app => {
-    const utilisateurs = require("../controller/controllerutilisateurs.js");
+    const utilisateurSrv = require("../controller/controllerutilisateurs.js");
 
     var router = require("express").Router();
 
     // Create a new Utilisateur
-    router.post("/", utilisateurs.create);
+    router.post("/", utilisateurSrv.create);
 
     // Retrieve all Utilisateurs
-    router.get("/", utilisateurs.findAll);
+    router.get("/", utilisateurSrv.findAll);
 
     // Retrieve all published Utilisateurs
-    router.get("/published", utilisateurs.findAllPublished);
+    router.get("/published", utilisateurSrv.findAllPublished);
 
     // Retrieve a single Utilisateur with id
-    router.get("/:id", utilisateurs.findOne);
+    router.get("/:id", utilisateurSrv.findOne);
 
     // Update a Utilisateur with id
-    router.put("/:id", utilisateurs.update);
+    router.put("/:id", utilisateurSrv.update);
+
+    // Update a Utilisateur with id
+    router.put("/amis/:id", utilisateurSrv.updateamis);
 
     // Delete a Utilisateur with id
-    router.delete("/:id", utilisateurs.delete);
+    router.delete("/:id", utilisateurSrv.delete);
 
     // Delete all Utilisateurs
-    router.delete("/", utilisateurs.deleteAll);
+    router.delete("/", utilisateurSrv.deleteAll);
+
+    router.post("/test", utilisateurSrv.testConnexion)
 
     app.use('/api/utilisateurs', router);
 };
