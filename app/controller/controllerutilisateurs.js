@@ -17,10 +17,8 @@ exports.create = (req, res) => {
     const utilisateur = {
         id: req.body.id,
         pseudo: req.body.pseudo,
-        etatconnection: req.body.etatconnection,
-        listeamis: req.body.listeamis,
-        demandeamis: req.body.demandeamis,
-        requeteamis: req.body.requeteamis
+        motdepasse: req.body.motdepasse,
+        etatconnection: req.body.etatconnection
     };
 
     // Save Utilisateur in the database
@@ -41,7 +39,10 @@ exports.findAll = (req, res) => {
     const pseudo = req.query.pseudo;
     var condition = pseudo ? { pseudo: { [Op.like]: `${pseudo}` } } : null;
 
-    Utilisateur.findAll({ where: condition })
+    Utilisateur.findAll({
+        where: condition,
+        attributes: { exclude: ['motdepasse'] }
+    })
         .then(data => {
             res.send(data);
         })
@@ -101,74 +102,141 @@ exports.update = (req, res) => {
 
 exports.updateamis = (req, res) => {
     const id = req.params.id;
-    const { champ, nouvelleValeur } = req.body; // Extraire la clé et la valeur du corps de la requête
-    console.log({ "champ": champ, "nouvelleValeur": nouvelleValeur })
+    const { champ, nouvelleValeur, type } = req.body; // Extraire la clé et la valeur du corps de la requête
 
-    // Récupérer l'utilisateur actuel depuis la base de données
-    Utilisateur.findByPk(id)
-        .then(utilisateur => {
-            if (!utilisateur) {
-                return res.status(404).send({
-                    message: `Utilisateur with id=${id} not found.`
-                });
-            }
-
-            // Vérifier quel champ doit être mis à jour
-            let champExistant = utilisateur[champ];
-            let ajoutdonnées = false
-
-            if (champExistant === null) {
-                // Si le champ est null, créez une nouvelle liste avec la nouvelle valeur
-                champExistant = nouvelleValeur;
-                ajoutdonnées = true
-            } else {
-                // Divisez la chaîne champExistant en un tableau de valeurs
-                const valeursExistantes = champExistant.split(',');
-
-                // Vérifiez si la nouvelle valeur est déjà présente dans le tableau
-                if (!valeursExistantes.includes(nouvelleValeur)) {
-                    // Ajoutez la nouvelle valeur au tableau
-                    valeursExistantes.push(nouvelleValeur);
-                    ajoutdonnées = true
-                } else {
-                    ajoutdonnées = false
+    if (type === 'add') {
+        // Récupérer l'utilisateur actuel depuis la base de données et ajouter l'ami
+        Utilisateur.findByPk(id)
+            .then(utilisateur => {
+                if (!utilisateur) {
+                    return res.status(404).send({
+                        message: `Utilisateur with id=${id} not found.`
+                    });
                 }
 
-                // Joignez les valeurs du tableau avec des virgules pour obtenir la nouvelle valeur de champExistant
-                champExistant = valeursExistantes.join(',');
-                // champExistant = null
-            }
+                // Vérifier quel champ doit être mis à jour
+                let champExistant = utilisateur[champ];
+                let ajoutdonnées = false
 
-            // Créez un objet pour mettre à jour le champ spécifié
-            const champMaj = {};
-            champMaj[champ] = champExistant; // Utilisez la clé extraite directement
+                if (champExistant === "") {
+                    // Si le champ est null, créez une nouvelle liste avec la nouvelle valeur
+                    champExistant = nouvelleValeur;
+                    ajoutdonnées = true
+                } else {
+                    // Divisez la chaîne champExistant en un tableau de valeurs
+                    const valeursExistantes = champExistant.split(',');
 
-            // Mettre à jour le champ spécifié dans la base de données
-            utilisateur.update(champMaj)
-                .then(updatedUtilisateur => {
-                    if (ajoutdonnées) {
-                        res.send({
-                            message: `${nouvelleValeur} a été ajouté comme ami`,
-                            updatedUtilisateur
-                        });
+                    // Vérifiez si la nouvelle valeur est déjà présente dans le tableau
+                    if (!valeursExistantes.includes(nouvelleValeur)) {
+                        // Ajoutez la nouvelle valeur au tableau
+                        valeursExistantes.push(nouvelleValeur);
+                        ajoutdonnées = true
                     } else {
-                        res.send({
-                            message: `Demande d'ami déjà effectuée`,
-                            updatedUtilisateur
-                        });
+                        ajoutdonnées = false
                     }
-                })
-                .catch(err => {
-                    res.status(500).send({
-                        message: "Error updating Utilisateur with id=" + id
+
+                    // Joignez les valeurs du tableau avec des virgules pour obtenir la nouvelle valeur de champExistant
+                    champExistant = valeursExistantes.join(',');
+                    // champExistant = null
+                }
+
+                // Créez un objet pour mettre à jour le champ spécifié
+                const champMaj = {};
+                champMaj[champ] = champExistant; // Utilisez la clé extraite directement
+
+                // Mettre à jour le champ spécifié dans la base de données
+                utilisateur.update(champMaj)
+                    .then(updatedUtilisateur => {
+                        if (ajoutdonnées) {
+                            res.send({
+                                message: `Demande d'ami envoyée à ${nouvelleValeur}`,
+                                updatedUtilisateur
+                            });
+                        } else {
+                            res.send({
+                                message: `Demande d'ami déjà effectuée`,
+                                updatedUtilisateur
+                            });
+                        }
+                    })
+                    .catch(err => {
+                        res.status(500).send({
+                            message: "Error updating Utilisateur with id=" + id
+                        });
                     });
+            })
+            .catch(err => {
+                res.status(500).send({
+                    message: "Error retrieving Utilisateur with id=" + id
                 });
-        })
-        .catch(err => {
-            res.status(500).send({
-                message: "Error retrieving Utilisateur with id=" + id
             });
-        });
+    } else if (type === 'sup') {
+        // Récupérer l'utilisateur actuel depuis la base de données et supprimer l'ami
+        Utilisateur.findByPk(id)
+            .then(utilisateur => {
+                if (!utilisateur) {
+                    return res.status(404).send({
+                        message: `Utilisateur with id=${id} not found.`
+                    });
+                }
+
+                // Vérifier quel champ doit être mis à jour
+                let champExistant = utilisateur[champ];
+                let suppressiondonnées = false
+
+                function supprimerValeur(tableau, valeurASupprimer) {
+                    const index = tableau.indexOf(valeurASupprimer);
+                    if (index !== -1) {
+                        tableau.splice(index, 1);
+                    }
+                }
+
+                if (champExistant !== null) {
+                    // Divisez la chaîne champExistant en un tableau de valeurs
+                    const valeursExistantes = champExistant.split(',');
+
+                    // Vérifiez si la nouvelle valeur est déjà présente dans le tableau
+                    if (valeursExistantes.includes(nouvelleValeur)) {
+                        // Ajoutez la nouvelle valeur au tableau
+                        supprimerValeur(valeursExistantes, nouvelleValeur);
+                        suppressiondonnées = true
+                    }
+                    // Joignez les valeurs du tableau avec des virgules pour obtenir la nouvelle valeur de champExistant
+                    champExistant = valeursExistantes.join(',').replace(/,+/g, ',').replace(/^,|,$/g, '');
+
+                }
+
+                // Créez un objet pour mettre à jour le champ spécifié
+                const champMaj = {};
+                champMaj[champ] = champExistant; // Utilisez la clé extraite directement
+
+                // Mettre à jour le champ spécifié dans la base de données
+                utilisateur.update(champMaj)
+                    .then(updatedUtilisateur => {
+                        if (suppressiondonnées) {
+                            res.send({
+                                message: `${nouvelleValeur} a été supprimé du champ ${champ}`,
+                                updatedUtilisateur
+                            });
+                        } else {
+                            res.send({
+                                message: `Aucune suppression effectuée`,
+                                updatedUtilisateur
+                            });
+                        }
+                    })
+                    .catch(err => {
+                        res.status(500).send({
+                            message: "Error updating Utilisateur with id=" + id
+                        });
+                    });
+            })
+            .catch(err => {
+                res.status(500).send({
+                    message: "Error retrieving Utilisateur with id=" + id
+                });
+            });
+    }
 };
 
 // Delete a Utilisateur with the specified id in the request
@@ -195,6 +263,7 @@ exports.delete = (req, res) => {
             });
         });
 };
+
 
 // Delete all Utilisateurs from the database.
 exports.deleteAll = (req, res) => {
@@ -236,7 +305,7 @@ exports.testConnexion = (req, res) => {
         .then((utilisateur) => {
             if (utilisateur) {
                 if (utilisateur.motdepasse === motdepasse) {
-                    res.send({ message: "Connexion réussie !", connexion: true, id: utilisateur.id });
+                    res.send({ message: "Connexion réussie !", connexion: true, id: utilisateur.id, pseudo: utilisateur.pseudo, etatconnexion: utilisateur.etatconnexion, publique: utilisateur.publique });
                 } else {
                     res.status(401).send({ message: "Mot de passe incorrect.", connexion: false });
                 }

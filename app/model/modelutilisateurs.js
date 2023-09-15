@@ -11,17 +11,24 @@ module.exports = (sequelize, Sequelize) => {
         motdepasse: {
             type: Sequelize.STRING
         },
-        etatconnection: {
+        etatconnexion: {
             type: Sequelize.STRING
         },
         listeamis: {
-            type: Sequelize.STRING
+            type: Sequelize.STRING,
+            defaultValue: ""
         },
         demandeamis: {
-            type: Sequelize.STRING
+            type: Sequelize.STRING,
+            defaultValue: ""
         },
         requeteamis: {
-            type: Sequelize.STRING
+            type: Sequelize.STRING,
+            defaultValue: ""
+        },
+        publique: {
+            type: Sequelize.BOOLEAN,
+            defaultValue: false
         },
     }, {
         timestamps: false, // Désactive les colonnes createdAt et updatedAt
