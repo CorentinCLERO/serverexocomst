@@ -7,13 +7,13 @@ module.exports = app => {
     router.post("/", utilisateurSrv.create);
 
     // Retrieve all Utilisateurs
-    router.get("/", utilisateurSrv.findAll);
+    router.get("/", utilisateurSrv.find);
+
+    // Retrieve a single Utilisateur with id
+    router.get("/:id", utilisateurSrv.find);
 
     // Retrieve all published Utilisateurs
     router.get("/published", utilisateurSrv.findAllPublished);
-
-    // Retrieve a single Utilisateur with id
-    router.get("/:id", utilisateurSrv.findOne);
 
     // Update a Utilisateur with id
     router.put("/:id", utilisateurSrv.update);
@@ -28,6 +28,12 @@ module.exports = app => {
     router.delete("/", utilisateurSrv.deleteAll);
 
     router.post("/test", utilisateurSrv.testConnexion)
+
+    router.post("/demandeamis", utilisateurSrv.demandeamis);
+
+    router.post("/ajoutamis", utilisateurSrv.ajoutamis);
+
+    router.post("/refusamis", utilisateurSrv.refusamis);
 
     app.use('/api/utilisateurs', router);
 };

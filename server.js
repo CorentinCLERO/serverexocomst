@@ -15,11 +15,6 @@ app.use(express.json());
 // parse requests of content-type - application/x-www-form-urlencoded
 app.use(express.urlencoded({ extended: true }));
 
-// simple route
-/* app.get("/", (req, res) => {
-    res.json({ message: "Welcome to corentin application." });
-}); */
-
 require("./app/routes/routes.js")(app);
 
 // set port, listen for requests
@@ -40,4 +35,7 @@ db.sequelize.sync()
 
 /* db.sequelize.sync({ force: true }).then(() => {
     console.log("Drop and re-sync db.");
-}); */
+})
+    .catch((err) => {
+        console.log("Failed to Drop and re-sync db: " + err.message);
+    });; */

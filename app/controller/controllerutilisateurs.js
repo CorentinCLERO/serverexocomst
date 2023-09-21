@@ -35,13 +35,21 @@ exports.create = (req, res) => {
 };
 
 // Retrieve all Utilisateurs from the database.
-exports.findAll = (req, res) => {
+exports.find = (req, res) => {
     const pseudo = req.query.pseudo;
     var condition = pseudo ? { pseudo: { [Op.like]: `${pseudo}` } } : null;
+    const id = req.params.id;
+    var condition2 = id ? { id: { [Op.like]: `${id}` } } : null;
+    if (condition === null) condition = condition2
 
     Utilisateur.findAll({
         where: condition,
-        attributes: { exclude: ['motdepasse'] }
+        attributes: { exclude: ['motdepasse'] },
+        include: [
+            { model: db.Demandeamis, as: 'lesdemandeamis' },
+            { model: db.Listeamis, as: 'leslistemamis' },
+            { model: db.Requeteamis, as: 'lesrequeteamis' }
+        ]
     })
         .then(data => {
             res.send(data);
@@ -50,27 +58,6 @@ exports.findAll = (req, res) => {
             res.status(500).send({
                 message:
                     err.message || "Some error occurred while retrieving utilisateurs."
-            });
-        });
-};
-
-// Find a single Utilisateur with an id
-exports.findOne = (req, res) => {
-    const id = req.params.id;
-
-    Utilisateur.findByPk(id)
-        .then(data => {
-            if (data) {
-                res.send(data);
-            } else {
-                res.status(404).send({
-                    message: `Cannot find Utilisateur with id=${id}.`
-                });
-            }
-        })
-        .catch(err => {
-            res.status(500).send({
-                message: "Error retrieving Utilisateur with id=" + id
             });
         });
 };
@@ -320,5 +307,168 @@ exports.testConnexion = (req, res) => {
         });
 };
 
+exports.demandeamis = (req, res) => {
+    const pseudoaajouter = req.body.pseudoaajouter;
+    const pseudoutilisateur = req.body.pseudoutilisateur;
+    const idutilisateur = req.body.idutilisateur;
+
+
+    if (Object.keys(req.body).length === 0) {
+        // Supprimer toutes les données
+        Promise.all([
+            db.Requeteamis.destroy({ where: {} }),
+            db.Listeamis.destroy({ where: {} }),
+            db.Demandeamis.destroy({ where: {} })
+        ])
+            .then(() => {
+                res.status(200).send({ message: "Toutes les données ont été supprimées avec succès." });
+            })
+            .catch((err) => {
+                res.status(500).send({
+                    message: "Erreur lors de la suppression des données : " + err.message
+                });
+            });
+    } else {
+        if (pseudoaajouter === pseudoutilisateur) return res.status(400).send({ message: "Ceci est votre pseudo" });
+        if (!pseudoaajouter || /^\s*$/.test(pseudoaajouter)) return res.status(400).send({ message: "Le champ ne peux pas être vide." });
+        if (!req.body.pseudoaajouter || !req.body.pseudoutilisateur || !req.body.idutilisateur) return res.status(400).send({ message: "Toutes les informations nécessaires ne sont pas présentes." });
+        Utilisateur.findOne({
+            where: { pseudo: pseudoaajouter }
+        })
+            .then((utilisateur) => {
+                if (!utilisateur) return res.status(400).send({ message: "Pseudo inéxistant." });
+                let amiDejaAjoute = false;
+                db.Requeteamis.findOne({ where: { idUtilisateur: idutilisateur, pseudoAmi: pseudoaajouter } })
+                    .then((requeteamis) => {
+                        if (requeteamis) {
+                            amiDejaAjoute = true;
+                        } else {
+                            // Vérification dans Demandeamis
+                            return db.Demandeamis.findOne({ where: { idUtilisateur: utilisateur.id, pseudoAmi: pseudoutilisateur } });
+                        }
+                    })
+                    .then((demandeamis) => {
+                        if (demandeamis) {
+                            amiDejaAjoute = true;
+                        } else {
+                            // Vérification dans Demandeamis
+                            return db.Listeamis.findOne({ where: { idUtilisateur: utilisateur.id, pseudoAmi: pseudoutilisateur } });
+                        }
+                    })
+                    .then((listeamis) => {
+                        let dejaamis = false;
+                        if (listeamis) {
+                            dejaamis = true;
+                        }
+
+                        if (amiDejaAjoute) {
+                            res.status(400).send({ message: `Une demande d'ami à ${pseudoaajouter} a déjà été faite` });
+                        } else if (dejaamis) {
+                            res.status(400).send({ message: `L'utilisateur ${pseudoaajouter} est déjà dans la liste d'amis` });
+                        } else {
+                            // Si l'ami n'a pas déjà été ajouté, procédez à la création
+                            Promise.all([
+                                db.Requeteamis.create({ idUtilisateur: idutilisateur, pseudoAmi: pseudoaajouter }),
+                                db.Demandeamis.create({ idUtilisateur: utilisateur.id, pseudoAmi: pseudoutilisateur })
+                            ])
+                                .then((utilisateurmodifie) => {
+                                    Utilisateur.findOne({
+                                        where: { pseudo: pseudoaajouter },
+                                        attributes: { exclude: ['motdepasse'] },
+                                        include: [
+                                            { model: db.Demandeamis, as: 'lesdemandeamis' },
+                                            { model: db.Listeamis, as: 'leslistemamis' },
+                                            { model: db.Requeteamis, as: 'lesrequeteamis' }
+                                        ]
+                                    })
+                                        .then((utilisateur) => {
+                                            res.status(200).send({ message: `La demande d'ami à ${utilisateur.pseudo} a bien été envoyée`, data: { utilisateurmodifie } });
+                                        })
+                                        .catch((err) => {
+                                            res.status(500).send({
+                                                message: "Erreur lors de la recherche de l'utilisateur : " + err.message
+                                            });
+                                        });
+                                })
+                                .catch((err) => {
+                                    res.status(500).send({
+                                        message: "Erreur lors de la création de la demande d'ami : " + err.message
+                                    });
+                                });
+                        }
+                    })
+                    .catch((err) => {
+                        res.status(500).send({
+                            message: "Erreur lors de la recherche de l'utilisateur : " + err.message
+                        });
+                    });
+            })
+            .catch((err) => {
+                res.status(500).send({
+                    message: "Erreur lors de la recherche de l'utilisateur : " + err.message
+                });
+            });
+    }
+};
+
+exports.ajoutamis = (req, res) => {
+    const pseudoaajouter = req.body.pseudoaajouter;
+    const pseudoutilisateur = req.body.pseudoutilisateur;
+    const idutilisateur = req.body.idutilisateur;
+
+    if (!req.body.pseudoaajouter || !req.body.pseudoutilisateur || !req.body.idutilisateur) return res.status(400).send({ message: "Toutes les informations nécessaires ne sont pas présentes." });
+
+    Utilisateur.findOne({ where: { pseudo: pseudoaajouter } })
+        .then((utilisateur) => {
+            Promise.all([
+                db.Listeamis.create({ idUtilisateur: idutilisateur, pseudoAmi: pseudoaajouter }),
+                db.Listeamis.create({ idUtilisateur: utilisateur.id, pseudoAmi: pseudoutilisateur }),
+                db.Requeteamis.destroy({ where: { idUtilisateur: utilisateur.id, pseudoAmi: pseudoutilisateur } }),
+                db.Demandeamis.destroy({ where: { idUtilisateur: idutilisateur, pseudoAmi: pseudoaajouter } })
+            ])
+                .then(() => {
+                    res.status(200).send({ message: `${utilisateur.pseudo} est désormais votre amis` });
+                })
+                .catch((err) => {
+                    res.status(500).send({
+                        message: "Erreur lors de l'ajout de l'ami : " + err.message
+                    });
+                });
+        })
+        .catch((err) => {
+            res.status(500).send({
+                message: "Erreur lors de la recherche de l'utilisateur : " + err.message
+            });
+        })
+};
+
+exports.refusamis = (req, res) => {
+    const pseudoaajouter = req.body.pseudoaajouter;
+    const pseudoutilisateur = req.body.pseudoutilisateur;
+    const idutilisateur = req.body.idutilisateur;
+
+    if (!req.body.pseudoaajouter || !req.body.pseudoutilisateur || !req.body.idutilisateur) return res.status(400).send({ message: "Toutes les informations nécessaires ne sont pas présentes." });
+
+    Utilisateur.findOne({ where: { pseudo: pseudoaajouter } })
+        .then((utilisateur) => {
+            Promise.all([
+                db.Requeteamis.destroy({ where: { idUtilisateur: utilisateur.id, pseudoAmi: pseudoutilisateur } }),
+                db.Demandeamis.destroy({ where: { idUtilisateur: idutilisateur, pseudoAmi: pseudoaajouter } })
+            ])
+                .then(() => {
+                    res.status(200).send({ message: `${utilisateur.pseudo} est désormais votre amis` });
+                })
+                .catch((err) => {
+                    res.status(500).send({
+                        message: "Erreur lors de l'ajout de l'ami : " + err.message
+                    });
+                });
+        })
+        .catch((err) => {
+            res.status(500).send({
+                message: "Erreur lors de la recherche de l'utilisateur : " + err.message
+            });
+        })
+};
 
 module.exports = exports

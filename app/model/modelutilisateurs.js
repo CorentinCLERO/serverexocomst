@@ -14,18 +14,6 @@ module.exports = (sequelize, Sequelize) => {
         etatconnexion: {
             type: Sequelize.STRING
         },
-        listeamis: {
-            type: Sequelize.STRING,
-            defaultValue: ""
-        },
-        demandeamis: {
-            type: Sequelize.STRING,
-            defaultValue: ""
-        },
-        requeteamis: {
-            type: Sequelize.STRING,
-            defaultValue: ""
-        },
         publique: {
             type: Sequelize.BOOLEAN,
             defaultValue: false
