@@ -23,7 +23,7 @@ app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}.`);
 });
 
-const db = require("./app/model");
+const db = require("./app/models");
 
 db.sequelize.sync()
     .then(() => {
@@ -38,4 +38,4 @@ db.sequelize.sync()
 })
     .catch((err) => {
         console.log("Failed to Drop and re-sync db: " + err.message);
-    });; */
+    }); */

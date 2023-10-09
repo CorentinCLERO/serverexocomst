@@ -1,5 +1,6 @@
-const db = require("../model");
-const Utilisateur = db.Utilisateur;
+const db = require("../models");
+const Utilisateurs = db.Utilisateurs;
+const Requeteamis = db.Requeteamis;
 const Op = db.Sequelize.Op;
 
 
@@ -18,11 +19,11 @@ exports.create = (req, res) => {
         id: req.body.id,
         pseudo: req.body.pseudo,
         motdepasse: req.body.motdepasse,
-        etatconnection: req.body.etatconnection
+        etatconnexion: req.body.etatconnexion
     };
 
     // Save Utilisateur in the database
-    Utilisateur.create(utilisateur)
+    Utilisateurs.create(utilisateur)
         .then(data => {
             res.send(data);
         })
@@ -42,16 +43,17 @@ exports.find = (req, res) => {
     var condition2 = id ? { id: { [Op.like]: `${id}` } } : null;
     if (condition === null) condition = condition2
 
-    Utilisateur.findAll({
+    Utilisateurs.findAll({
         where: condition,
         attributes: { exclude: ['motdepasse'] },
         include: [
             { model: db.Demandeamis, as: 'lesdemandeamis' },
-            { model: db.Listeamis, as: 'leslistemamis' },
-            { model: db.Requeteamis, as: 'lesrequeteamis' }
-        ]
+            { model: db.Listeamis, as: 'leslisteamis' },
+            { model: Requeteamis, as: 'lesrequeteamis', }
+        ],
     })
         .then(data => {
+
             res.send(data);
         })
         .catch(err => {
@@ -66,7 +68,7 @@ exports.find = (req, res) => {
 exports.update = (req, res) => {
     const id = req.params.id;
 
-    Utilisateur.update(req.body, {
+    Utilisateurs.update(req.body, {
         where: { id: id }
     })
         .then(num => {
@@ -93,7 +95,7 @@ exports.updateamis = (req, res) => {
 
     if (type === 'add') {
         // Récupérer l'utilisateur actuel depuis la base de données et ajouter l'ami
-        Utilisateur.findByPk(id)
+        Utilisateurs.findByPk(id)
             .then(utilisateur => {
                 if (!utilisateur) {
                     return res.status(404).send({
@@ -159,7 +161,7 @@ exports.updateamis = (req, res) => {
             });
     } else if (type === 'sup') {
         // Récupérer l'utilisateur actuel depuis la base de données et supprimer l'ami
-        Utilisateur.findByPk(id)
+        Utilisateurs.findByPk(id)
             .then(utilisateur => {
                 if (!utilisateur) {
                     return res.status(404).send({
@@ -230,7 +232,7 @@ exports.updateamis = (req, res) => {
 exports.delete = (req, res) => {
     const id = req.params.id;
 
-    Utilisateur.destroy({
+    Utilisateurs.destroy({
         where: { id: id }
     })
         .then(num => {
@@ -254,7 +256,7 @@ exports.delete = (req, res) => {
 
 // Delete all Utilisateurs from the database.
 exports.deleteAll = (req, res) => {
-    Utilisateur.destroy({
+    Utilisateurs.destroy({
         where: {},
         truncate: false
     })
@@ -271,7 +273,7 @@ exports.deleteAll = (req, res) => {
 
 // Find all published Utilisateurs
 exports.findAllPublished = (req, res) => {
-    Utilisateur.findAll({ where: { published: true } })
+    Utilisateurs.findAll({ where: { published: true } })
         .then(data => {
             res.send(data);
         })
@@ -288,7 +290,7 @@ exports.testConnexion = (req, res) => {
     const pseudo = req.body.pseudo;
     const motdepasse = req.body.motdepasse;
 
-    Utilisateur.findOne({ where: { pseudo: pseudo } })
+    Utilisateurs.findOne({ where: { pseudo: pseudo } })
         .then((utilisateur) => {
             if (utilisateur) {
                 if (utilisateur.motdepasse === motdepasse) {
@@ -309,8 +311,8 @@ exports.testConnexion = (req, res) => {
 
 exports.demandeamis = (req, res) => {
     const pseudoaajouter = req.body.pseudoaajouter;
-    const pseudoutilisateur = req.body.pseudoutilisateur;
-    const idutilisateur = req.body.idutilisateur;
+    const pseudoDemandeur = req.body.pseudoDemandeur;
+    const idDemandeur = req.body.idDemandeur;
 
 
     if (Object.keys(req.body).length === 0) {
@@ -318,7 +320,8 @@ exports.demandeamis = (req, res) => {
         Promise.all([
             db.Requeteamis.destroy({ where: {} }),
             db.Listeamis.destroy({ where: {} }),
-            db.Demandeamis.destroy({ where: {} })
+            db.Demandeamis.destroy({ where: {} }),
+            Utilisateurs.destroy({ where: {} }),
         ])
             .then(() => {
                 res.status(200).send({ message: "Toutes les données ont été supprimées avec succès." });
@@ -329,22 +332,22 @@ exports.demandeamis = (req, res) => {
                 });
             });
     } else {
-        if (pseudoaajouter === pseudoutilisateur) return res.status(400).send({ message: "Ceci est votre pseudo" });
+        if (pseudoaajouter === pseudoDemandeur) return res.status(400).send({ message: "Ceci est votre pseudo" });
         if (!pseudoaajouter || /^\s*$/.test(pseudoaajouter)) return res.status(400).send({ message: "Le champ ne peux pas être vide." });
-        if (!req.body.pseudoaajouter || !req.body.pseudoutilisateur || !req.body.idutilisateur) return res.status(400).send({ message: "Toutes les informations nécessaires ne sont pas présentes." });
-        Utilisateur.findOne({
+        if (!pseudoaajouter || !pseudoDemandeur || !idDemandeur) return res.status(400).send({ message: "Toutes les informations nécessaires ne sont pas présentes." });
+        Utilisateurs.findOne({
             where: { pseudo: pseudoaajouter }
         })
             .then((utilisateur) => {
                 if (!utilisateur) return res.status(400).send({ message: "Pseudo inéxistant." });
                 let amiDejaAjoute = false;
-                db.Requeteamis.findOne({ where: { idUtilisateur: idutilisateur, pseudoAmi: pseudoaajouter } })
+                db.Requeteamis.findOne({ where: { idUtilisateur: idDemandeur, idAmi: utilisateur.id } })
                     .then((requeteamis) => {
                         if (requeteamis) {
                             amiDejaAjoute = true;
                         } else {
                             // Vérification dans Demandeamis
-                            return db.Demandeamis.findOne({ where: { idUtilisateur: utilisateur.id, pseudoAmi: pseudoutilisateur } });
+                            return db.Demandeamis.findOne({ where: { idUtilisateur: idDemandeur, idAmi: utilisateur.id } });
                         }
                     })
                     .then((demandeamis) => {
@@ -352,7 +355,7 @@ exports.demandeamis = (req, res) => {
                             amiDejaAjoute = true;
                         } else {
                             // Vérification dans Demandeamis
-                            return db.Listeamis.findOne({ where: { idUtilisateur: utilisateur.id, pseudoAmi: pseudoutilisateur } });
+                            return db.Listeamis.findOne({ where: { idUtilisateur: idDemandeur, idAmi: utilisateur.id } });
                         }
                     })
                     .then((listeamis) => {
@@ -368,16 +371,16 @@ exports.demandeamis = (req, res) => {
                         } else {
                             // Si l'ami n'a pas déjà été ajouté, procédez à la création
                             Promise.all([
-                                db.Requeteamis.create({ idUtilisateur: idutilisateur, pseudoAmi: pseudoaajouter }),
-                                db.Demandeamis.create({ idUtilisateur: utilisateur.id, pseudoAmi: pseudoutilisateur })
+                                db.Requeteamis.create({ idUtilisateur: idDemandeur, idAmi: utilisateur.id }),
+                                db.Demandeamis.create({ idUtilisateur: utilisateur.id, idAmi: idDemandeur })
                             ])
                                 .then((utilisateurmodifie) => {
-                                    Utilisateur.findOne({
+                                    Utilisateurs.findOne({
                                         where: { pseudo: pseudoaajouter },
                                         attributes: { exclude: ['motdepasse'] },
                                         include: [
                                             { model: db.Demandeamis, as: 'lesdemandeamis' },
-                                            { model: db.Listeamis, as: 'leslistemamis' },
+                                            { model: db.Listeamis, as: 'leslisteamis' },
                                             { model: db.Requeteamis, as: 'lesrequeteamis' }
                                         ]
                                     })
@@ -412,19 +415,18 @@ exports.demandeamis = (req, res) => {
 };
 
 exports.ajoutamis = (req, res) => {
-    const pseudoaajouter = req.body.pseudoaajouter;
-    const pseudoutilisateur = req.body.pseudoutilisateur;
-    const idutilisateur = req.body.idutilisateur;
+    const pseudoAAjouter = req.body.pseudoAAjouter;
+    const idValideur = req.body.idValideur;
 
-    if (!req.body.pseudoaajouter || !req.body.pseudoutilisateur || !req.body.idutilisateur) return res.status(400).send({ message: "Toutes les informations nécessaires ne sont pas présentes." });
+    if (!pseudoAAjouter || !idValideur) return res.status(400).send({ message: "Toutes les informations nécessaires ne sont pas présentes." });
 
-    Utilisateur.findOne({ where: { pseudo: pseudoaajouter } })
+    Utilisateurs.findOne({ where: { pseudo: pseudoAAjouter } })
         .then((utilisateur) => {
             Promise.all([
-                db.Listeamis.create({ idUtilisateur: idutilisateur, pseudoAmi: pseudoaajouter }),
-                db.Listeamis.create({ idUtilisateur: utilisateur.id, pseudoAmi: pseudoutilisateur }),
-                db.Requeteamis.destroy({ where: { idUtilisateur: utilisateur.id, pseudoAmi: pseudoutilisateur } }),
-                db.Demandeamis.destroy({ where: { idUtilisateur: idutilisateur, pseudoAmi: pseudoaajouter } })
+                db.Listeamis.create({ idUtilisateur: idValideur, idAmi: utilisateur.id }),
+                db.Listeamis.create({ idUtilisateur: utilisateur.id, idAmi: idValideur }),
+                db.Requeteamis.destroy({ where: { idUtilisateur: utilisateur.id, idAmi: idValideur } }),
+                db.Demandeamis.destroy({ where: { idUtilisateur: idValideur, idAmi: utilisateur.id } })
             ])
                 .then(() => {
                     res.status(200).send({ message: `${utilisateur.pseudo} est désormais votre amis` });
@@ -443,17 +445,16 @@ exports.ajoutamis = (req, res) => {
 };
 
 exports.refusamis = (req, res) => {
-    const pseudoaajouter = req.body.pseudoaajouter;
-    const pseudoutilisateur = req.body.pseudoutilisateur;
-    const idutilisateur = req.body.idutilisateur;
+    const pseudoASupprimer = req.body.pseudoASupprimer;
+    const idSuppresseur = req.body.idSuppresseur;
 
-    if (!req.body.pseudoaajouter || !req.body.pseudoutilisateur || !req.body.idutilisateur) return res.status(400).send({ message: "Toutes les informations nécessaires ne sont pas présentes." });
+    if (!pseudoASupprimer || !idSuppresseur) return res.status(400).send({ message: "Toutes les informations nécessaires ne sont pas présentes." });
 
-    Utilisateur.findOne({ where: { pseudo: pseudoaajouter } })
+    Utilisateurs.findOne({ where: { pseudo: pseudoASupprimer } })
         .then((utilisateur) => {
             Promise.all([
-                db.Requeteamis.destroy({ where: { idUtilisateur: utilisateur.id, pseudoAmi: pseudoutilisateur } }),
-                db.Demandeamis.destroy({ where: { idUtilisateur: idutilisateur, pseudoAmi: pseudoaajouter } })
+                db.Requeteamis.destroy({ where: { idUtilisateur: utilisateur.id, idAmi: idSuppresseur } }),
+                db.Demandeamis.destroy({ where: { idUtilisateur: idSuppresseur, idAmi: utilisateur.id } })
             ])
                 .then(() => {
                     res.status(200).send({ message: `${utilisateur.pseudo} est désormais votre amis` });

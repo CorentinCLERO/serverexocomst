@@ -1,7 +1,10 @@
 module.exports = app => {
     const utilisateurSrv = require("../controller/controllerutilisateurs.js");
+    const requeteamiSrv = require("../controller/controllerrequeteamis.js");
 
     var router = require("express").Router();
+
+    router.get("/ra", requeteamiSrv.find);
 
     // Create a new Utilisateur
     router.post("/", utilisateurSrv.create);
